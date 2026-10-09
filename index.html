@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Notre vidéoclub</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🍿%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Work+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{color-scheme:light;--bg:#f3ead7;--card:#fffaf0;--tx:#2b2622;--mut:#7a6f63;--ac:#b8392b;--bd:#d9ccb3;--ln:#e8dcc3}
@@ -39,7 +40,9 @@ textarea,input[type=text],input[type=number],input[type=url]{width:100%;padding:
 textarea{min-height:54px;margin:6px 0;resize:vertical}
 .r{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .dim{color:var(--mut);font-style:italic}
-.hl{outline:3px solid var(--ac)}
+.hl{outline:4px solid var(--ac);outline-offset:3px;animation:pulse .8s 2}
+@keyframes pulse{50%{transform:scale(1.03)}}
+#pk{max-width:1100px;margin:auto;padding:0 18px 6px;font-weight:700;font-size:18px}
 #who,#msg,#form{max-width:1100px;margin:auto;padding:0 18px}
 #msg{color:var(--ac)}
 #form form{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;display:grid;gap:10px;margin:10px 0;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
@@ -62,6 +65,13 @@ button:disabled{opacity:.5;cursor:default}
 .big{font-family:"Bebas Neue",Impact,sans-serif;font-size:56px;letter-spacing:1px;line-height:1;margin-bottom:8px}
 .qf{display:grid;gap:10px;margin:12px 0}
 .qf label{font-size:13px;color:var(--mut);display:grid;gap:4px}
+.cnt{position:absolute!important;top:10px;right:10px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.cnt span{background:#0008;color:#fff;font-size:12px;padding:3px 8px;border-radius:999px}
+.omg{margin-top:10px;font-size:14px;font-weight:700}
+.omgbar{height:10px;background:var(--ln);border-radius:6px;overflow:hidden;margin-top:4px}
+.omgfill{height:100%;background:linear-gradient(90deg,#d9a02b,#b8392b)}
+input[type=range]{width:100%;accent-color:var(--ac);margin:4px 0 0}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--tx);color:var(--card);padding:12px 20px;border-radius:999px;font-weight:700;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9;max-width:90vw;text-align:center}
 </style>
 </head>
 <body>
@@ -73,8 +83,10 @@ button:disabled{opacity:.5;cursor:default}
 <div id="nav"></div>
 <div id="form"></div>
 <div class="bar" id="bar"></div>
+<div id="pk"></div>
 <div class="grid" id="g"></div>
 <div id="quiz" style="display:none"></div>
+<div id="toast"></div>
 <p class="dim" style="max-width:1100px;margin:0 auto;padding:0 18px 30px;font-size:12px">Données de films : TMDB. Ce site utilise l'API TMDB mais n'est ni endossé ni certifié par TMDB.</p>
 
 <script type="module">
@@ -85,9 +97,9 @@ import {CFG} from "./config.js";
 
 let me=null;try{me=localStorage.getItem("vc-me")}catch(e){}
 const other=()=>me==="a"?"b":"a";
-let films=[],data={},flt="Tous",db=null,editing=null,formOpen=false,qs=[],scores={},view="lib",Q={phase:"home"};
+let films=[],data={},flt="Tous",db=null,editing=null,formOpen=false,qs=[],scores={},view="lib",Q={phase:"home"},drafts={},pickAll=false;try{pickAll=localStorage.getItem("vc-pick")==="all"}catch(e){}
 const $=s=>document.querySelector(s);
-const g=$("#g"),bar=$("#bar"),who=$("#who"),msg=$("#msg"),formEl=$("#form"),navEl=$("#nav"),quizEl=$("#quiz");
+const g=$("#g"),bar=$("#bar"),who=$("#who"),msg=$("#msg"),formEl=$("#form"),navEl=$("#nav"),quizEl=$("#quiz"),pkEl=$("#pk");
 const hue=t=>{let h=0;for(const c of t)h=(h*31+c.charCodeAt(0))%360;return h};
 const cats=()=>[...new Set(films.map(f=>f.cat).filter(Boolean))].sort();
 
@@ -123,12 +135,28 @@ function chooseWho(){
   ["a","b"].forEach(k=>{const b=document.createElement("button");b.textContent=CFG.names[k];b.onclick=()=>{me=k;try{localStorage.setItem("vc-me",k)}catch(e){}render()};p.appendChild(b);p.append(" ")});
   who.appendChild(p);
 }
+const nerd=n=>n>=6?"loser":({2:"nerd",3:"jeez what a nerd",4:"GEEEEEKKK",5:"Jedi master nerd"})[n]||"";
+let toastT;
+function showToast(txt){const e=$("#toast");e.textContent=txt;e.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(()=>e.style.opacity=0,3500)}
+async function patchMine(fid,patch){
+  if(!db)return;
+  try{await setDoc(doc(db,"clubs",CFG.club,"ratings",fid+"_"+me),{film:fid,who:me,...patch},{merge:true})}catch(e){msg.textContent="Erreur : "+e.code}
+}
+function setCount(fid,n){const p={count:n};if(n>0){p.seen=true;if(drafts[fid])delete drafts[fid].seen}patchMine(fid,p)}
 function otherBox(box,fid){
-  const o=(data[fid]||{})[other()];box.innerHTML="";
-  const h=document.createElement("h4");h.textContent=CFG.names[other()];box.appendChild(h);
-  if(!o||!o.seen){const d=document.createElement("div");d.className="dim";d.textContent="Pas encore vu";box.appendChild(d);return}
-  box.appendChild(stars(o.rating||0));
-  const t=document.createElement("div");if(o.review)t.textContent=o.review;else{t.className="dim";t.textContent="(pas de critique)"}box.appendChild(t);
+  const o=(data[fid]||{})[other()],mineSeen=((data[fid]||{})[me]||{}).seen;
+  box.innerHTML="";
+  box.appendChild(el("h4",null,CFG.names[other()]));
+  if(o&&o.seen){
+    box.appendChild(stars(o.rating||0));
+    const t=el("div",o.review?null:"dim",o.review||"(pas de critique)");box.appendChild(t);
+  }else box.appendChild(el("div","dim","Pas encore vu"));
+  if(o&&o.count)box.appendChild(el("div",null,"👁 Vu "+o.count+" fois"+(nerd(o.count)?" · "+nerd(o.count):"")));
+  if(o&&o.omg>0&&!mineSeen){
+    const ob=el("div","omg");
+    ob.appendChild(el("div",null,"🔥 OMG faut que tu le check · "+o.omg+"/10"));
+    const tr=el("div","omgbar"),fl=el("div","omgfill");fl.style.width=(o.omg*10)+"%";tr.appendChild(fl);ob.appendChild(tr);box.appendChild(ob);
+  }
 }
 function panels(){document.querySelectorAll("[data-o]").forEach(b=>otherBox(b,b.dataset.o))}
 const seenBy=(f,k)=>((data[f.id]||{})[k]||{}).seen;
@@ -140,7 +168,7 @@ function matches(f){
 }
 async function saveRating(fid,rating,review,seen,btn){
   if(!db)return;btn.textContent="…";
-  try{await setDoc(doc(db,"clubs",CFG.club,"ratings",fid+"_"+me),{film:fid,who:me,rating,review,seen,ts:Date.now()});btn.textContent="Enregistré ✓";setTimeout(()=>btn.textContent="Enregistrer",1500)}
+  try{await setDoc(doc(db,"clubs",CFG.club,"ratings",fid+"_"+me),{film:fid,who:me,rating,review,seen,ts:Date.now()},{merge:true});delete drafts[fid];btn.textContent="Enregistré ✓";setTimeout(()=>btn.textContent="Enregistrer",1500)}
   catch(e){btn.textContent="Erreur";msg.textContent="Erreur : "+e.code}
 }
 
@@ -201,12 +229,14 @@ function render(){
   if(!me){chooseWho();bar.innerHTML="";g.innerHTML="";navEl.innerHTML="";quizEl.style.display="none";return}
   who.innerHTML="";const wp=document.createElement("p");wp.className="dim";wp.textContent="Connecté en tant que "+CFG.names[me]+" · ";
   const sw=document.createElement("button");sw.className="sm";sw.textContent="changer";sw.onclick=()=>{me=null;try{localStorage.removeItem("vc-me")}catch(e){}render()};wp.appendChild(sw);who.appendChild(wp);
-  drawNav();
+  drawNav();pkEl.textContent="";
   if(view==="quiz"){bar.innerHTML="";g.innerHTML="";formEl.style.display="none";quizEl.style.display="";showQuiz();return}
   formEl.style.display="";quizEl.style.display="none";
   bar.innerHTML="";
   const add=document.createElement("button");add.className="ac";add.textContent="+ Ajouter un film";add.onclick=()=>{editing=null;formOpen=true;renderForm()};bar.appendChild(add);
   const r=document.createElement("button");r.textContent="🎲 Surprends-moi";r.onclick=pick;bar.appendChild(r);
+  const pm=document.createElement("button");pm.className="sm";pm.textContent=pickAll?"Dans : toute la bibliothèque":"Dans : films pas vus";
+  pm.onclick=()=>{pickAll=!pickAll;try{localStorage.setItem("vc-pick",pickAll?"all":"unseen")}catch(e){}render()};bar.appendChild(pm);
   if(flt!=="Tous"&&flt!=="Pas vus par moi"&&flt!=="Vus par les deux"&&!cats().includes(flt))flt="Tous";
   ["Tous",...cats(),"Pas vus par moi","Vus par les deux"].forEach(x=>{const b=document.createElement("button");b.textContent=x;if(x===flt)b.className="on";b.onclick=()=>{flt=x;render()};bar.appendChild(b)});
   g.innerHTML="";
@@ -214,12 +244,14 @@ function render(){
   films.forEach(f=>{
     if(!matches(f))return;
     const fid=f.id,mine=(data[fid]||{})[me]||{};
-    let rating=mine.rating||0,seen=!!mine.seen;
+    const dr=drafts[fid]||(drafts[fid]={});let rating=dr.rating??(mine.rating||0),seen=dr.seen??!!mine.seen;
     const h=hue(f.title);
     const c=document.createElement("div");c.className="c";c.id="f-"+fid;
-    c.innerHTML=`<div class="p" style="background:linear-gradient(160deg,hsl(${h},38%,38%),hsl(${(h+30)%360},35%,14%))"><span class="tag"></span><b></b><i></i></div><div class="b"><p class="syn"></p><div class="top"><a class="t" target="_blank" rel="noopener">▶ Bande-annonce</a><button class="sm" data-e>Modifier</button><button class="sm" data-d>Supprimer</button></div><div class="box" data-m></div><div class="box" data-o="${fid}"></div></div>`;
+    c.innerHTML=`<div class="p" style="background:linear-gradient(160deg,hsl(${h},38%,38%),hsl(${(h+30)%360},35%,14%))"><span class="tag"></span><div class="cnt"></div><b></b><i></i></div><div class="b"><p class="syn"></p><div class="top"><a class="t" target="_blank" rel="noopener">▶ Bande-annonce</a><button class="sm" data-e>Modifier</button><button class="sm" data-d>Supprimer</button></div><div class="box" data-m></div><div class="box" data-o="${fid}"></div></div>`;
     const p=c.querySelector(".p");
     if(f.poster){const im=document.createElement("img");im.src=f.poster;im.alt="";im.referrerPolicy="no-referrer";im.onerror=()=>im.remove();p.prepend(im)}
+    const cnt=c.querySelector(".cnt");
+    ["a","b"].forEach(k=>{const n=((data[fid]||{})[k]||{}).count;if(n>0)cnt.appendChild(el("span",null,"👁 "+CFG.names[k]+" ×"+n))});
     const tag=c.querySelector(".tag");if(f.cat)tag.textContent=f.cat;else tag.remove();
     c.querySelector("b").textContent=f.title;c.querySelector("i").textContent=f.year||"";
     const syn=c.querySelector(".syn");if(f.syn)syn.textContent=f.syn;else syn.remove();
@@ -227,24 +259,42 @@ function render(){
     c.querySelector("[data-e]").onclick=()=>{editing=f;formOpen=true;renderForm();window.scrollTo({top:0,behavior:"smooth"})};
     c.querySelector("[data-d]").onclick=async()=>{if(confirm("Supprimer « "+f.title+" » de la bibliothèque ?"))try{await deleteDoc(doc(db,"clubs",CFG.club,"films",fid))}catch(e){msg.textContent="Erreur : "+e.code}};
     const m=c.querySelector("[data-m]");
-    const h4=document.createElement("h4");h4.textContent="Toi";m.appendChild(h4);
+    m.appendChild(el("h4",null,"Toi"));
+    const cn=mine.count||0;
+    const cr=el("div","r"),minus=el("button","sm","−"),plus=el("button","sm","+");
+    cr.append(minus,plus,el("span",null,"Vu "+cn+" fois"+(nerd(cn)?" · "+nerd(cn):"")));
+    minus.onclick=()=>{if(cn>0)setCount(fid,cn-1)};
+    plus.onclick=()=>{if(cn<99){setCount(fid,cn+1);const w=nerd(cn+1);if(w)showToast((cn+1>=6?"💀 ":cn+1===5?"🧙 ":"🤓 ")+w)}};
+    m.appendChild(cr);
     const sl=document.createElement("div");m.appendChild(sl);
-    const paint=()=>{sl.innerHTML="";sl.appendChild(stars(rating,i=>{rating=i;seen=true;cb.checked=true;paint()}))};
-    const ta=document.createElement("textarea");ta.placeholder="Ta critique…";ta.value=mine.review||"";
+    const paint=()=>{sl.innerHTML="";sl.appendChild(stars(rating,i=>{rating=i;seen=true;dr.rating=i;dr.seen=true;cb.checked=true;paint()}))};
+    const ta=document.createElement("textarea");ta.placeholder="Ta critique…";ta.value=dr.review??(mine.review||"");ta.oninput=()=>{dr.review=ta.value};
     const row=document.createElement("div");row.className="r";
-    const lb=document.createElement("label");const cb=document.createElement("input");cb.type="checkbox";cb.checked=seen;cb.onchange=()=>seen=cb.checked;lb.append(cb," Déjà vu");
+    const lb=document.createElement("label");const cb=document.createElement("input");cb.type="checkbox";cb.checked=seen;cb.onchange=()=>{seen=cb.checked;dr.seen=seen};lb.append(cb," Déjà vu");
     const sv=document.createElement("button");sv.textContent="Enregistrer";sv.onclick=()=>saveRating(fid,rating,ta.value.trim(),seen||rating>0,sv);
     row.append(lb,sv);m.append(ta,row);paint();
+    if(!seenBy(f,other())){
+      const ob=el("div","omg"),ol=el("div",null,"🔥 OMG faut que tu le check · "+(mine.omg||0)+"/10");
+      const rg=document.createElement("input");rg.type="range";rg.min=0;rg.max=10;rg.value=mine.omg||0;
+      rg.oninput=()=>{ol.textContent="🔥 OMG faut que tu le check · "+rg.value+"/10"};
+      rg.onchange=()=>patchMine(fid,{omg:+rg.value});
+      ob.append(ol,rg);m.appendChild(ob);
+    }
     g.appendChild(c);
   });
   panels();
 }
+let lastPick=null;
 function pick(){
-  const pool=films.filter(f=>!seenBy(f,me)&&matches(f));
-  if(!pool.length)return;
-  const f=pool[Math.floor(Math.random()*pool.length)],el=$("#f-"+f.id);
-  document.querySelectorAll(".hl").forEach(e=>e.classList.remove("hl"));
-  el.classList.add("hl");el.scrollIntoView({behavior:"smooth",block:"center"});
+  let pool=pickAll?films:films.filter(f=>!seenBy(f,me));
+  if(pool.length>1)pool=pool.filter(f=>f.id!==lastPick);
+  if(!pool.length){pkEl.textContent=pickAll?"La bibliothèque est vide.":"Rien à proposer : tu as vu tous les films (ou la bibliothèque est vide). Passe sur « toute la bibliothèque » pour en revoir un.";return}
+  const f=pool[Math.floor(Math.random()*pool.length)];lastPick=f.id;
+  let card=$("#f-"+f.id);
+  if(!card){flt="Tous";render();card=$("#f-"+f.id)}
+  pkEl.textContent="🎲 Ce soir : "+f.title+(f.year?" ("+f.year+")":"");
+  document.querySelectorAll(".hl").forEach(x=>x.classList.remove("hl"));
+  if(card){card.classList.add("hl");card.scrollIntoView({behavior:"smooth",block:"center"})}
 }
 
 /* ================= QUIZ ================= */
