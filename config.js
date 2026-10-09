@@ -5,6 +5,6 @@ export const CFG={
   club:"1a12d63325c6cbe8387c681772fbb982", // identique aux règles Firestore
   tmdb:"e3b55062203d3234775ce4858880b4c7",   // clé API TMDB (remplissage automatique)
   lang:"en-US",                                         // langue des titres et synopsis (ex. "fr-CA" pour le français)
-  names:{a:"Zhu",b:"Ma sœur"}                        // prénoms affichés
+  names:{a:"Gandalf",b:"Princesse Mononoke"}                        // prénoms affichés
 };
 /* ======================== */
