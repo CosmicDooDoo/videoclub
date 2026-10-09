@@ -4,20 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Notre vidéoclub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f6f3ee;--card:#fff;--tx:#1b1b1f;--mut:#6b6b73;--ac:#d81f26;--bd:#e3ded6}
-@media (prefers-color-scheme:dark){:root{--bg:#0e0e11;--card:#18181d;--tx:#f3f3f5;--mut:#a0a0aa;--bd:#2a2a31}}
+:root{color-scheme:dark;--bg:#121212;--card:#1f1f1f;--tx:#fff;--mut:#b3b3b3;--ac:#f5c518;--bd:#333}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font-family:"Helvetica Neue",Arial,sans-serif;line-height:1.45}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.45}
 header{padding:28px 18px 8px;max-width:1100px;margin:auto}
-h1{margin:0;font-size:clamp(28px,6vw,46px);letter-spacing:-1px}h1 span{color:var(--ac)}
+h1{margin:0;font-size:clamp(28px,6vw,46px);letter-spacing:-1px}h1 span{background:var(--ac);color:#000;padding:0 10px;border-radius:6px;letter-spacing:0}
 .sub{color:var(--mut);margin:6px 0 0}
 .bar{max-width:1100px;margin:auto;padding:14px 18px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 button{font:inherit;cursor:pointer;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:999px}
-button.on{background:var(--tx);color:var(--bg)}
-button.ac{background:var(--ac);color:#fff;border:0;font-weight:700}
+button.on{background:var(--ac);color:#000;border-color:var(--ac)}
+input[type=checkbox]{accent-color:var(--ac)}
+button.ac{background:var(--ac);color:#000;border:0;font-weight:700}
 .grid{max-width:1100px;margin:auto;padding:6px 18px 40px;display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
-.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
 .p{height:190px;display:flex;flex-direction:column;justify-content:flex-end;padding:14px;color:#fff;position:relative;overflow:hidden}
 .p img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .p::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 40%,#000a)}
@@ -28,11 +29,11 @@ button.ac{background:var(--ac);color:#fff;border:0;font-weight:700}
 .b{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
 .syn{margin:0;font-size:14px;color:var(--mut)}
 .top{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-a.t{font-size:13px;padding:7px 12px;text-decoration:none;color:#fff;background:var(--ac);border-radius:999px}
+a.t{font-size:13px;padding:7px 12px;text-decoration:none;color:#000;font-weight:700;background:var(--ac);border-radius:999px}
 .sm{font-size:12px;padding:5px 10px}
 .box{border-top:1px solid var(--bd);padding-top:10px;font-size:14px}
 .box h4{margin:0 0 6px;font-size:13px;color:var(--mut)}
-.st span{cursor:pointer;font-size:22px;color:var(--bd)}.st span.f{color:#f5b301}
+.st span{cursor:pointer;font-size:22px;color:var(--bd)}.st span.f{color:var(--ac)}
 .ro .st span{cursor:default;font-size:18px}
 textarea,input[type=text],input[type=number],input[type=url]{width:100%;padding:8px;border:1px solid var(--bd);border-radius:8px;background:transparent;color:var(--tx);font:inherit;font-size:14px}
 textarea{min-height:54px;margin:6px 0;resize:vertical}
@@ -55,18 +56,13 @@ textarea{min-height:54px;margin:6px 0;resize:vertical}
 <div id="form"></div>
 <div class="bar" id="bar"></div>
 <div class="grid" id="g"></div>
+<p class="dim" style="max-width:1100px;margin:0 auto;padding:0 18px 30px;font-size:12px">Données de films : TMDB. Ce site utilise l'API TMDB mais n'est ni endossé ni certifié par TMDB.</p>
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getFirestore,collection,doc,setDoc,deleteDoc,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {CFG} from "./config.js";
 
-/* ====== À MODIFIER ====== */
-const CFG={
-  firebase:{apiKey:"AIzaSyBdOASow6uQKX_LCQUAD7fx2m4oDnn9mQI",authDomain:"notre-videoclub.firebaseapp.com",projectId:"notre-videoclub",appId:"1:843838745924:web:daaddf93f26cca4ffd3b11"},
-  club:"1a12d63325c6cbe8387c681772fbb982", // identique aux règles Firestore
-  names:{a:"Loris",b:"Juliette"}                        // prénoms affichés
-};
-/* ======================== */
 
 let me=null;try{me=localStorage.getItem("vc-me")}catch(e){}
 const other=()=>me==="a"?"b":"a";
@@ -130,6 +126,8 @@ function renderForm(){
   form.innerHTML=`<label>Titre*<input type="text" name="title" required></label>
   <label>Année<input type="number" name="year" min="1888" max="2100"></label>
   <label>Catégorie (ex. Time capsule)<input type="text" name="cat" list="cl"></label><datalist id="cl"></datalist>
+  <label class="w">Lien IMDb (optionnel, sinon le titre sert à chercher)<input type="url" name="imdb" placeholder="https://www.imdb.com/title/tt…"></label>
+  <div class="w r"><button type="button" id="auto">🔍 Remplir automatiquement</button><span id="as" class="dim"></span></div>
   <label class="w">Synopsis<textarea name="syn"></textarea></label>
   <label>Lien de l'affiche (URL d'image, optionnel)<input type="url" name="poster" placeholder="https://…"></label>
   <label>Lien de la bande-annonce (optionnel)<input type="url" name="trailer" placeholder="https://youtube.com/…"></label>
@@ -137,6 +135,29 @@ function renderForm(){
   cats().forEach(c=>{const o=document.createElement("option");o.value=c;form.querySelector("#cl").appendChild(o)});
   for(const k of ["title","year","cat","syn","poster","trailer"])form.elements[k].value=f[k]||"";
   form.querySelector("#cx").onclick=()=>{formOpen=false;editing=null;renderForm()};
+  form.querySelector("#auto").onclick=async()=>{
+    const st=form.querySelector("#as"),key=CFG.tmdb;
+    if(!key){st.textContent="Clé TMDB manquante dans la configuration.";return}
+    const title=form.elements.title.value.trim(),year=form.elements.year.value,imdb=(form.elements.imdb.value.match(/tt\d+/)||[])[0];
+    if(!imdb&&!title){st.textContent="Écris un titre ou colle un lien IMDb.";return}
+    st.textContent="Recherche…";
+    const api=async(path,q)=>{const r=await fetch("https://api.themoviedb.org/3"+path+"?api_key="+key+"&"+q);if(!r.ok)throw new Error(r.status);return r.json()};
+    try{
+      let m;
+      if(imdb)m=((await api("/find/"+imdb,"external_source=imdb_id&language="+CFG.lang)).movie_results||[])[0];
+      else m=((await api("/search/movie","query="+encodeURIComponent(title)+(year?"&year="+year:"")+"&language="+CFG.lang)).results||[])[0];
+      if(!m){st.textContent="Aucun résultat.";return}
+      let ov=m.overview;
+      if(!ov){ov=(await api("/movie/"+m.id,"language=en-US")).overview||""}
+      const trailer=async l=>((await api("/movie/"+m.id+"/videos","language="+l)).results||[]).find(v=>v.site==="YouTube"&&v.type==="Trailer");
+      const tr=(await trailer(CFG.lang))||(await trailer("en-US"));
+      const y=(m.release_date||"").slice(0,4);
+      form.elements.title.value=m.title;form.elements.year.value=y;form.elements.syn.value=ov||"";
+      if(m.poster_path)form.elements.poster.value="https://image.tmdb.org/t/p/w500"+m.poster_path;
+      if(tr)form.elements.trailer.value="https://www.youtube.com/watch?v="+tr.key;
+      st.textContent="Trouvé : "+m.title+" ("+y+"). Vérifie que c'est le bon film, puis ajoute.";
+    }catch(e){st.textContent="Erreur de recherche ("+e.message+")."}
+  };
   form.onsubmit=async e=>{
     e.preventDefault();const v=Object.fromEntries(new FormData(form));
     const ok=u=>/^https?:\/\//.test(u)?u:"";
