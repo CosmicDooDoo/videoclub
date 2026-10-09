@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notre vidéoclub</title>
+<style>
+:root{--bg:#f6f3ee;--card:#fff;--tx:#1b1b1f;--mut:#6b6b73;--ac:#d81f26;--bd:#e3ded6}
+@media (prefers-color-scheme:dark){:root{--bg:#0e0e11;--card:#18181d;--tx:#f3f3f5;--mut:#a0a0aa;--bd:#2a2a31}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"Helvetica Neue",Arial,sans-serif;line-height:1.45}
+header{padding:28px 18px 8px;max-width:1100px;margin:auto}
+h1{margin:0;font-size:clamp(28px,6vw,46px);letter-spacing:-1px}h1 span{color:var(--ac)}
+.sub{color:var(--mut);margin:6px 0 0}
+.bar{max-width:1100px;margin:auto;padding:14px 18px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:inherit;cursor:pointer;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:999px}
+button.on{background:var(--tx);color:var(--bg)}
+button.ac{background:var(--ac);color:#fff;border:0;font-weight:700}
+.grid{max-width:1100px;margin:auto;padding:6px 18px 40px;display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.p{height:190px;display:flex;flex-direction:column;justify-content:flex-end;padding:14px;color:#fff;position:relative;overflow:hidden}
+.p img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.p::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 40%,#000a)}
+.p *{position:relative;z-index:1}.p img{z-index:0}
+.p b{font-size:21px;line-height:1.05;text-transform:uppercase;text-shadow:0 2px 8px #0008}
+.p i{font-style:normal;font-size:12px;opacity:.9;margin-top:6px}
+.tag{position:absolute!important;top:10px;left:10px;font-size:11px;background:#0008;padding:3px 8px;border-radius:999px}
+.b{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.syn{margin:0;font-size:14px;color:var(--mut)}
+.top{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+a.t{font-size:13px;padding:7px 12px;text-decoration:none;color:#fff;background:var(--ac);border-radius:999px}
+.sm{font-size:12px;padding:5px 10px}
+.box{border-top:1px solid var(--bd);padding-top:10px;font-size:14px}
+.box h4{margin:0 0 6px;font-size:13px;color:var(--mut)}
+.st span{cursor:pointer;font-size:22px;color:var(--bd)}.st span.f{color:#f5b301}
+.ro .st span{cursor:default;font-size:18px}
+textarea,input[type=text],input[type=number],input[type=url]{width:100%;padding:8px;border:1px solid var(--bd);border-radius:8px;background:transparent;color:var(--tx);font:inherit;font-size:14px}
+textarea{min-height:54px;margin:6px 0;resize:vertical}
+.r{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.dim{color:var(--mut);font-style:italic}
+.hl{outline:3px solid var(--ac)}
+#who,#msg,#form{max-width:1100px;margin:auto;padding:0 18px}
+#msg{color:var(--ac)}
+#form form{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;display:grid;gap:10px;margin:10px 0;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+#form label{font-size:13px;color:var(--mut);display:grid;gap:4px}
+#form .w{grid-column:1/-1}
+</style>
+</head>
+<body>
+<header>
+<h1>Notre <span>vidéoclub</span></h1>
+<p class="sub">Notre bibliothèque, nos notes, nos critiques 🍿</p>
+</header>
+<div id="who"></div><div id="msg"></div>
+<div id="form"></div>
+<div class="bar" id="bar"></div>
+<div class="grid" id="g"></div>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getFirestore,collection,doc,setDoc,deleteDoc,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ====== À MODIFIER ====== */
+const CFG={
+  firebase:{apiKey:"AIzaSyBdOASow6uQKX_LCQUAD7fx2m4oDnn9mQI",authDomain:"notre-videoclub.firebaseapp.com",projectId:"notre-videoclub",appId:"1:843838745924:web:daaddf93f26cca4ffd3b11"},
+  club:"1a12d63325c6cbe8387c681772fbb982", // identique aux règles Firestore
+  names:{a:"Zhu",b:"Ma sœur"}                        // prénoms affichés
+};
+/* ======================== */
+
+let me=null;try{me=localStorage.getItem("vc-me")}catch(e){}
+const other=()=>me==="a"?"b":"a";
+let films=[],data={},flt="Tous",db=null,editing=null,formOpen=false;
+const $=s=>document.querySelector(s);
+const g=$("#g"),bar=$("#bar"),who=$("#who"),msg=$("#msg"),formEl=$("#form");
+const hue=t=>{let h=0;for(const c of t)h=(h*31+c.charCodeAt(0))%360;return h};
+const cats=()=>[...new Set(films.map(f=>f.cat).filter(Boolean))].sort();
+
+function refresh(){
+  if(g.contains(document.activeElement)&&document.activeElement.tagName==="TEXTAREA")panels();else render();
+}
+try{
+  db=getFirestore(initializeApp(CFG.firebase));
+  onSnapshot(collection(db,"clubs",CFG.club,"films"),s=>{
+    films=[];s.forEach(d=>films.push({...d.data(),id:d.id}));
+    films.sort((a,b)=>(b.ts||0)-(a.ts||0));msg.textContent="";refresh();
+  },e=>{msg.textContent="Connexion impossible : "+e.code});
+  onSnapshot(collection(db,"clubs",CFG.club,"ratings"),s=>{
+    data={};s.forEach(d=>{const v=d.data();(data[v.film]=data[v.film]||{})[v.who]=v});refresh();
+  },e=>{msg.textContent="Connexion impossible : "+e.code});
+}catch(e){msg.textContent="Firebase n'est pas configuré."}
+
+function stars(n,onclick){
+  const s=document.createElement("div");s.className="st";
+  for(let i=1;i<=5;i++){const x=document.createElement("span");x.textContent="★";if(i<=n)x.className="f";if(onclick)x.onclick=()=>onclick(i);s.appendChild(x)}
+  return s;
+}
+function chooseWho(){
+  who.innerHTML="";
+  const p=document.createElement("p");p.textContent="Tu es qui ? ";
+  ["a","b"].forEach(k=>{const b=document.createElement("button");b.textContent=CFG.names[k];b.onclick=()=>{me=k;try{localStorage.setItem("vc-me",k)}catch(e){}render()};p.appendChild(b);p.append(" ")});
+  who.appendChild(p);
+}
+function otherBox(box,fid){
+  const o=(data[fid]||{})[other()];box.innerHTML="";
+  const h=document.createElement("h4");h.textContent=CFG.names[other()];box.appendChild(h);
+  if(!o||!o.seen){const d=document.createElement("div");d.className="dim";d.textContent="Pas encore vu";box.appendChild(d);return}
+  box.appendChild(stars(o.rating||0));
+  const t=document.createElement("div");if(o.review)t.textContent=o.review;else{t.className="dim";t.textContent="(pas de critique)"}box.appendChild(t);
+}
+function panels(){document.querySelectorAll("[data-o]").forEach(b=>otherBox(b,b.dataset.o))}
+const seenBy=(f,k)=>((data[f.id]||{})[k]||{}).seen;
+function matches(f){
+  if(flt==="Pas vus par moi")return !seenBy(f,me);
+  if(flt==="Vus par les deux")return seenBy(f,me)&&seenBy(f,other());
+  if(flt==="Tous")return true;
+  return f.cat===flt;
+}
+async function saveRating(fid,rating,review,seen,btn){
+  if(!db)return;btn.textContent="…";
+  try{await setDoc(doc(db,"clubs",CFG.club,"ratings",fid+"_"+me),{film:fid,who:me,rating,review,seen,ts:Date.now()});btn.textContent="Enregistré ✓";setTimeout(()=>btn.textContent="Enregistrer",1500)}
+  catch(e){btn.textContent="Erreur";msg.textContent="Erreur : "+e.code}
+}
+
+/* ---- formulaire d'ajout / modification ---- */
+function renderForm(){
+  formEl.innerHTML="";if(!formOpen)return;
+  const f=editing||{};
+  const form=document.createElement("form");
+  form.innerHTML=`<label>Titre*<input type="text" name="title" required></label>
+  <label>Année<input type="number" name="year" min="1888" max="2100"></label>
+  <label>Catégorie (ex. Time capsule)<input type="text" name="cat" list="cl"></label><datalist id="cl"></datalist>
+  <label class="w">Synopsis<textarea name="syn"></textarea></label>
+  <label>Lien de l'affiche (URL d'image, optionnel)<input type="url" name="poster" placeholder="https://…"></label>
+  <label>Lien de la bande-annonce (optionnel)<input type="url" name="trailer" placeholder="https://youtube.com/…"></label>
+  <div class="w r"><button class="ac" type="submit">${editing?"Enregistrer les changements":"Ajouter à la bibliothèque"}</button><button type="button" id="cx">Annuler</button></div>`;
+  cats().forEach(c=>{const o=document.createElement("option");o.value=c;form.querySelector("#cl").appendChild(o)});
+  for(const k of ["title","year","cat","syn","poster","trailer"])form.elements[k].value=f[k]||"";
+  form.querySelector("#cx").onclick=()=>{formOpen=false;editing=null;renderForm()};
+  form.onsubmit=async e=>{
+    e.preventDefault();const v=Object.fromEntries(new FormData(form));
+    const ok=u=>/^https?:\/\//.test(u)?u:"";
+    const ref=editing?doc(db,"clubs",CFG.club,"films",editing.id):doc(collection(db,"clubs",CFG.club,"films"));
+    try{
+      await setDoc(ref,{title:v.title.trim(),year:v.year?+v.year:null,cat:v.cat.trim(),syn:v.syn.trim(),poster:ok(v.poster.trim()),trailer:ok(v.trailer.trim()),ts:editing?(editing.ts||Date.now()):Date.now()});
+      formOpen=false;editing=null;renderForm();
+    }catch(err){msg.textContent="Erreur : "+err.code}
+  };
+  formEl.appendChild(form);form.elements.title.focus();
+}
+
+function render(){
+  if(!me){chooseWho();bar.innerHTML="";g.innerHTML="";return}
+  who.innerHTML="";const wp=document.createElement("p");wp.className="dim";wp.textContent="Connecté en tant que "+CFG.names[me]+" · ";
+  const sw=document.createElement("button");sw.className="sm";sw.textContent="changer";sw.onclick=()=>{me=null;try{localStorage.removeItem("vc-me")}catch(e){}render()};wp.appendChild(sw);who.appendChild(wp);
+  bar.innerHTML="";
+  const add=document.createElement("button");add.className="ac";add.textContent="+ Ajouter un film";add.onclick=()=>{editing=null;formOpen=true;renderForm()};bar.appendChild(add);
+  const r=document.createElement("button");r.textContent="🎲 Surprends-moi";r.onclick=pick;bar.appendChild(r);
+  if(flt!=="Tous"&&flt!=="Pas vus par moi"&&flt!=="Vus par les deux"&&!cats().includes(flt))flt="Tous";
+  ["Tous",...cats(),"Pas vus par moi","Vus par les deux"].forEach(x=>{const b=document.createElement("button");b.textContent=x;if(x===flt)b.className="on";b.onclick=()=>{flt=x;render()};bar.appendChild(b)});
+  g.innerHTML="";
+  if(!films.length){const d=document.createElement("p");d.className="dim";d.style.gridColumn="1/-1";d.textContent="La bibliothèque est vide. Ajoute le premier film avec le bouton « + Ajouter un film ».";g.appendChild(d);return}
+  films.forEach(f=>{
+    if(!matches(f))return;
+    const fid=f.id,mine=(data[fid]||{})[me]||{};
+    let rating=mine.rating||0,seen=!!mine.seen;
+    const h=hue(f.title);
+    const c=document.createElement("div");c.className="c";c.id="f-"+fid;
+    c.innerHTML=`<div class="p" style="background:linear-gradient(160deg,hsl(${h},70%,38%),hsl(${(h+40)%360},60%,10%))"><span class="tag"></span><b></b><i></i></div><div class="b"><p class="syn"></p><div class="top"><a class="t" target="_blank" rel="noopener">▶ Bande-annonce</a><button class="sm" data-e>Modifier</button><button class="sm" data-d>Supprimer</button></div><div class="box" data-m></div><div class="box" data-o="${fid}"></div></div>`;
+    const p=c.querySelector(".p");
+    if(f.poster){const im=document.createElement("img");im.src=f.poster;im.alt="";im.referrerPolicy="no-referrer";im.onerror=()=>im.remove();p.prepend(im)}
+    const tag=c.querySelector(".tag");if(f.cat)tag.textContent=f.cat;else tag.remove();
+    c.querySelector("b").textContent=f.title;c.querySelector("i").textContent=f.year||"";
+    const syn=c.querySelector(".syn");if(f.syn)syn.textContent=f.syn;else syn.remove();
+    c.querySelector("a").href=f.trailer||"https://www.youtube.com/results?search_query="+encodeURIComponent(f.title+" "+(f.year||"")+" bande-annonce");
+    c.querySelector("[data-e]").onclick=()=>{editing=f;formOpen=true;renderForm();window.scrollTo({top:0,behavior:"smooth"})};
+    c.querySelector("[data-d]").onclick=async()=>{if(confirm("Supprimer « "+f.title+" » de la bibliothèque ?"))try{await deleteDoc(doc(db,"clubs",CFG.club,"films",fid))}catch(e){msg.textContent="Erreur : "+e.code}};
+    const m=c.querySelector("[data-m]");
+    const h4=document.createElement("h4");h4.textContent="Toi";m.appendChild(h4);
+    const sl=document.createElement("div");m.appendChild(sl);
+    const paint=()=>{sl.innerHTML="";sl.appendChild(stars(rating,i=>{rating=i;seen=true;cb.checked=true;paint()}))};
+    const ta=document.createElement("textarea");ta.placeholder="Ta critique…";ta.value=mine.review||"";
+    const row=document.createElement("div");row.className="r";
+    const lb=document.createElement("label");const cb=document.createElement("input");cb.type="checkbox";cb.checked=seen;cb.onchange=()=>seen=cb.checked;lb.append(cb," Déjà vu");
+    const sv=document.createElement("button");sv.textContent="Enregistrer";sv.onclick=()=>saveRating(fid,rating,ta.value.trim(),seen||rating>0,sv);
+    row.append(lb,sv);m.append(ta,row);paint();
+    g.appendChild(c);
+  });
+  panels();
+}
+function pick(){
+  const pool=films.filter(f=>!seenBy(f,me)&&matches(f));
+  if(!pool.length)return;
+  const f=pool[Math.floor(Math.random()*pool.length)],el=$("#f-"+f.id);
+  document.querySelectorAll(".hl").forEach(e=>e.classList.remove("hl"));
+  el.classList.add("hl");el.scrollIntoView({behavior:"smooth",block:"center"});
+}
+render();
+</script>
+</body>
+</html>
